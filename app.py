@@ -248,12 +248,8 @@ def main():
         for idx, dia in enumerate(semana):
             with cols[idx]:
                 if dia == 0:
-                    # Dia vazio
-                    st.markdown("""
-                    <div style='background: #FAFAFA; min-height: 100px; border: 1px solid #E0E0E0; 
-                                border-radius: 4px; padding: 8px;'>
-                    </div>
-                    """, unsafe_allow_html=True)
+                    # Dia vazio - container vazio
+                    st.container(height=120, border=True)
                 else:
                     data_dia = datetime(ano, mes, dia).date()
                     
@@ -266,58 +262,39 @@ def main():
                     # Estilo do dia
                     is_today = data_dia == hoje
                     
-                    if is_today:
-                        bg_color = "#E8F4FD"
-                        dia_color = "#1967D2"
-                        dia_weight = "700"
-                        border_color = "#1967D2"
-                    else:
-                        bg_color = "#FFFFFF"
-                        dia_color = "#1A1A1A"
-                        dia_weight = "500"
-                        border_color = "#E0E0E0"
-                    
-                    # Montar HTML do dia
-                    dia_html = f"""
-                    <div style='background: {bg_color}; min-height: 100px; border: 1px solid {border_color}; 
-                                border-radius: 4px; padding: 8px;'>
-                        <div style='font-size: 0.875rem; color: {dia_color}; font-weight: {dia_weight}; 
-                                    margin-bottom: 4px;'>
-                            {dia}
-                        </div>
-                    """
-                    
-                    # Adicionar eventos (máximo 3)
-                    for _, evento in eventos_dia.head(3).iterrows():
-                        color = get_event_color(evento['Tipo de evento'])
-                        nome = str(evento['Nome'])
+                    # Container para o dia
+                    with st.container(height=120, border=True):
+                        # Número do dia
+                        if is_today:
+                            st.markdown(f"**:blue[{dia}]**")
+                        else:
+                            st.markdown(f"**{dia}**")
                         
-                        # Truncar nome
-                        if len(nome) > 15:
-                            nome = nome[:12] + "..."
+                        # Adicionar eventos (máximo 3)
+                        for _, evento in eventos_dia.head(3).iterrows():
+                            color = get_event_color(evento['Tipo de evento'])
+                            nome = str(evento['Nome'])
+                            
+                            # Truncar nome
+                            if len(nome) > 12:
+                                nome = nome[:10] + ".."
+                            
+                            # Badge do evento
+                            st.markdown(
+                                f'<div style="background:{color}; color:white; '
+                                f'padding:2px 4px; margin:2px 0; border-radius:3px; '
+                                f'font-size:0.65rem; font-weight:500; '
+                                f'white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">'
+                                f'{nome}</div>',
+                                unsafe_allow_html=True
+                            )
                         
-                        dia_html += f"""
-                        <div style='background: {color}; color: white; padding: 2px 4px; 
-                                    margin-bottom: 2px; border-radius: 3px; font-size: 0.65rem; 
-                                    font-weight: 500; white-space: nowrap; overflow: hidden; 
-                                    text-overflow: ellipsis;'>
-                            {nome}
-                        </div>
-                        """
-                    
-                    # Indicador de mais eventos
-                    if len(eventos_dia) > 3:
-                        dia_html += f"""
-                        <div style='font-size: 0.6rem; color: #5F6368; margin-top: 2px;'>
-                            +{len(eventos_dia) - 3} mais
-                        </div>
-                        """
-                    
-                    dia_html += "</div>"
-                    
-                    st.markdown(dia_html, unsafe_allow_html=True)
+                        # Indicador de mais eventos
+                        if len(eventos_dia) > 3:
+                            st.caption(f"+{len(eventos_dia) - 3} mais")
         
-        st.markdown("<div style='margin: 4px 0;'></div>", unsafe_allow_html=True)
+        # Pequeno espaço entre semanas
+        st.write("")
     
     # ===== LEGENDA =====
     st.markdown("<div style='margin-top: 32px;'></div>", unsafe_allow_html=True)
