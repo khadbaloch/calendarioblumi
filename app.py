@@ -20,13 +20,17 @@ st.markdown("""
         font-family: 'Inter', sans-serif;
     }
     
-    /* Fundo branco */
-    .main {
-        background-color: #FFFFFF;
-        padding: 32px;
+    /* Forçar fundo branco */
+    .main, .stApp {
+        background-color: #FFFFFF !important;
+        color: #1A1A1A !important;
     }
     
-    /* Sidebar com fundo claro e fonte escura */
+    [data-testid="stAppViewContainer"] {
+        background-color: #FFFFFF !important;
+    }
+    
+    /* Sidebar com fundo claro */
     [data-testid="stSidebar"] {
         background-color: #F8F9FA !important;
     }
@@ -35,34 +39,22 @@ st.markdown("""
         color: #1A1A1A !important;
     }
     
-    /* Header limpo */
+    /* Headers */
+    h1, h2, h3, h4, h5, h6 {
+        color: #1A1A1A !important;
+    }
+    
     h1 {
-        color: #1A1A1A;
         font-weight: 600;
         font-size: 1.8rem;
-        margin-bottom: 8px;
     }
     
-    h2 {
-        color: #1A1A1A;
-        font-weight: 600;
-        font-size: 1.4rem;
+    /* Containers com fundo branco */
+    [data-testid="stVerticalBlock"] {
+        background-color: transparent;
     }
     
-    h3 {
-        color: #1A1A1A;
-        font-weight: 600;
-        font-size: 1.2rem;
-    }
-    
-    /* Remover espaçamento excessivo */
-    .block-container {
-        padding-top: 2rem;
-        padding-bottom: 2rem;
-        max-width: 1200px;
-    }
-    
-    /* Métricas visíveis - fonte clara */
+    /* Métricas visíveis */
     [data-testid="stMetricValue"] {
         font-size: 1.8rem;
         font-weight: 600;
@@ -73,26 +65,27 @@ st.markdown("""
         color: #5F6368 !important;
     }
     
-    /* Botões navegação alinhados */
+    /* Botões */
     .stButton > button {
         background-color: #FFFFFF;
         border: 1px solid #DADCE0;
         border-radius: 4px;
         color: #1A1A1A;
         font-weight: 500;
-        padding: 8px 16px;
-        height: 40px;
     }
     
     .stButton > button:hover {
         background-color: #F8F9FA;
-        border-color: #DADCE0;
     }
     
-    /* Selectbox escuro */
-    .stSelectbox label {
-        color: #1A1A1A !important;
-        font-weight: 500;
+    /* Texto geral */
+    p, span, div {
+        color: #1A1A1A;
+    }
+    
+    /* Caption */
+    .stCaption {
+        color: #5F6368 !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -192,7 +185,7 @@ def main():
         
         st.markdown(f"""
         <div style='text-align: center; padding: 8px 0;'>
-            <span style='font-size: 1.5rem; font-weight: 600; color: #1A1A1A;'>
+            <span style='font-size: 1.5rem; font-weight: 600; color: #FFFFFF;'>
                 {meses_pt[mes_atual - 1]} {ano_atual}
             </span>
         </div>
@@ -254,19 +247,21 @@ def main():
                     data_dia = datetime(ano, mes, dia).date()
                     
                     # Buscar eventos deste dia
-                    # CORREÇÃO: Tratar Data Final nula (NaT)
-                    eventos_dia = df[
+                    # Se Data Final é nula, considera apenas Data início
+                    eventos_range = df[
                         (df['Data início'].dt.date <= data_dia) &
-                        ((df['Data Final'].dt.date >= data_dia) | (df['Data Final'].isna()))
+                        (df['Data Final'].dt.date >= data_dia) &
+                        (df['Data Final'].notna())
                     ]
                     
-                    # Se Data Final é nula, considera apenas o dia de início
-                    eventos_dia_inicio = df[
-                        (df['Data início'].dt.date == data_dia)
+                    eventos_sem_fim = df[
+                        (df['Data início'].dt.date == data_dia) &
+                        (df['Data Final'].isna())
                     ]
                     
-                    # Combinar ambos e remover duplicatas
-                    eventos_dia = pd.concat([eventos_dia, eventos_dia_inicio]).drop_duplicates()
+                    # Combinar e remover duplicatas
+                    eventos_dia = pd.concat([eventos_range, eventos_sem_fim]).drop_duplicates()
+                    eventos_dia = eventos_dia.sort_values('Data início')
                     
                     # Estilo do dia
                     is_today = data_dia == hoje
@@ -279,44 +274,33 @@ def main():
                         else:
                             st.markdown(f"**{dia}**")
                         
-                        # Mostrar TODOS os eventos (não limitar a 3)
+                        # Mostrar eventos com barrinhas coloridas (máximo 3)
                         num_eventos = len(eventos_dia)
                         
-                        if num_eventos > 0:
-                            # Mostrar até 2 eventos com nome
-                            for _, evento in eventos_dia.head(2).iterrows():
-                                color = get_event_color(evento['Tipo de evento'])
-                                nome = str(evento['Nome'])
-                                
-                                # Truncar nome
-                                if len(nome) > 12:
-                                    nome_display = nome[:10] + ".."
-                                else:
-                                    nome_display = nome
-                                
-                                # Criar popover com detalhes
-                                data_inicio_str = evento['Data início'].strftime('%d/%m/%Y') if pd.notna(evento['Data início']) else 'N/A'
-                                data_fim_str = evento['Data Final'].strftime('%d/%m/%Y') if pd.notna(evento['Data Final']) else data_inicio_str
-                                tipo_str = evento['Tipo de evento'] if pd.notna(evento['Tipo de evento']) else 'Evento'
-                                univ_str = evento['Universidade'] if pd.notna(evento['Universidade']) else 'N/A'
-                                
-                                # Usar popover do Streamlit
-                                with st.popover(nome_display, use_container_width=True):
-                                    st.markdown(f"**{nome}**")
-                                    st.caption(f"📅 {data_inicio_str} - {data_fim_str}")
-                                    st.caption(f"🏷️ {tipo_str}")
-                                    st.caption(f"🎓 {univ_str}")
+                        for _, evento in eventos_dia.head(3).iterrows():
+                            color = get_event_color(evento['Tipo de evento'])
+                            nome = str(evento['Nome'])
                             
-                            # Se houver mais de 2, mostrar indicador clicável
-                            if num_eventos > 2:
-                                with st.popover(f"+{num_eventos - 2} eventos", use_container_width=True):
-                                    st.markdown("### Todos os eventos:")
-                                    for _, evento in eventos_dia.iterrows():
-                                        nome = str(evento['Nome'])
-                                        data_inicio_str = evento['Data início'].strftime('%d/%m') if pd.notna(evento['Data início']) else 'N/A'
-                                        st.markdown(f"• **{nome}**")
-                                        st.caption(f"📅 {data_inicio_str}")
-                                        st.divider()
+                            # Truncar nome
+                            if len(nome) > 12:
+                                nome_display = nome[:10] + ".."
+                            else:
+                                nome_display = nome
+                            
+                            # Barrinha colorida (estilo Google Calendar)
+                            st.markdown(
+                                f'<div style="background:{color}; color:white; '
+                                f'padding:2px 4px; margin:2px 0; border-radius:3px; '
+                                f'font-size:0.65rem; font-weight:500; '
+                                f'white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" '
+                                f'title="{nome}">'
+                                f'{nome_display}</div>',
+                                unsafe_allow_html=True
+                            )
+                        
+                        # Indicador de mais eventos
+                        if num_eventos > 3:
+                            st.caption(f"+{num_eventos - 3} mais")
         
         # Pequeno espaço entre semanas
         st.write("")
@@ -397,6 +381,55 @@ def main():
                 </div>
             </div>
             """, unsafe_allow_html=True)
+
+    # ===== LISTA DE EVENTOS DO MÊS =====
+    st.divider()
+    
+    eventos_mes = df[
+        (df['Data início'].dt.month == mes) &
+        (df['Data início'].dt.year == ano)
+    ].sort_values('Data início')
+    
+    if len(eventos_mes) > 0:
+        st.subheader(f"📋 Eventos de {meses_pt[mes-1]} ({len(eventos_mes)})")
+        st.write("")
+        
+        for _, evento in eventos_mes.iterrows():
+            color = get_event_color(evento['Tipo de evento'])
+            
+            data_inicio = evento['Data início']
+            data_fim = evento['Data Final']
+            
+            # Se Data Final é nula, usa Data início
+            if pd.notna(data_inicio):
+                data_str = data_inicio.strftime('%d/%m/%Y')
+                if pd.notna(data_fim) and data_fim != data_inicio:
+                    data_str += " - " + data_fim.strftime('%d/%m/%Y')
+            else:
+                data_str = "Data não definida"
+            
+            tipo = evento['Tipo de evento'] if pd.notna(evento['Tipo de evento']) else 'Evento'
+            univ = evento['Universidade'] if pd.notna(evento['Universidade']) else ''
+            
+            # Card do evento
+            col1, col2 = st.columns([3, 1])
+            
+            with col1:
+                st.markdown(f"**{evento['Nome']}**")
+                st.caption(f"📅 {data_str} | 🏷️ {tipo} {f'| 🎓 {univ}' if univ else ''}")
+            
+            with col2:
+                # Badge colorida
+                st.markdown(
+                    f'<div style="background:{color}; color:white; padding:6px 12px; '
+                    f'border-radius:6px; text-align:center; font-size:0.75rem; font-weight:600;">'
+                    f'{tipo}</div>',
+                    unsafe_allow_html=True
+                )
+            
+            st.divider()
+    else:
+        st.info(f"Nenhum evento em {meses_pt[mes-1]} {ano}")
 
 if __name__ == "__main__":
     main()
