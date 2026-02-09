@@ -2,9 +2,6 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta
 import calendar
-from google.oauth2 import service_account
-from googleapiclient.discovery import build
-import json
 
 # ===== CONFIGURAÇÃO DA PÁGINA =====
 st.set_page_config(
@@ -193,50 +190,20 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# ===== FUNÇÕES DE CONEXÃO COM GOOGLE SHEETS =====
-@st.cache_resource
-def get_google_sheets_service():
-    """Conecta ao Google Sheets usando credenciais do Streamlit Secrets"""
-    try:
-        credentials = service_account.Credentials.from_service_account_info(
-            st.secrets["gcp_service_account"],
-            scopes=['https://www.googleapis.com/auth/spreadsheets.readonly']
-        )
-        service = build('sheets', 'v4', credentials=credentials)
-        return service
-    except Exception as e:
-        st.error(f"Erro ao conectar com Google Sheets: {e}")
-        return None
-
+# ===== FUNÇÃO DE CARREGAMENTO DE DADOS =====
 @st.cache_data(ttl=300)  # Cache por 5 minutos
-def load_events_from_sheets():
-    """Carrega os eventos da planilha do Google Sheets"""
+def load_events_from_csv():
+    """Carrega os eventos do CSV público do Google Sheets"""
     try:
-        service = get_google_sheets_service()
-        if service is None:
-            return None
+        # URL do CSV público
+        CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRaDzfwhQrA8vGBdTYMQxMtWE-ABiSDqBpxxfVQMrJcvNC0sSqOEH6wj7Gvk3oTQhDzMJmWFEw3yQyL/pub?output=csv"
         
-        # ID da planilha (extraído da URL)
-        SPREADSHEET_ID = '1J7baToo2UjdEJp8jtWc_7tYdQN_kJPmErKIR_9ByvL4'
-        RANGE_NAME = 'Página1!A:E'  # Ajuste conforme o nome da aba
-        
-        result = service.spreadsheets().values().get(
-            spreadsheetId=SPREADSHEET_ID,
-            range=RANGE_NAME
-        ).execute()
-        
-        values = result.get('values', [])
-        
-        if not values:
-            st.warning('Nenhum dado encontrado na planilha.')
-            return None
-        
-        # Criar DataFrame
-        df = pd.DataFrame(values[1:], columns=values[0])
+        # Carregar dados
+        df = pd.read_csv(CSV_URL)
         
         # Processar datas
-        df['Data início'] = pd.to_datetime(df['Data início'], errors='coerce')
-        df['Data Final'] = pd.to_datetime(df['Data Final'], errors='coerce')
+        df['Data início'] = pd.to_datetime(df['Data início'], errors='coerce', dayfirst=True)
+        df['Data Final'] = pd.to_datetime(df['Data Final'], errors='coerce', dayfirst=True)
         
         return df
     
@@ -246,6 +213,9 @@ def load_events_from_sheets():
 
 def get_event_color(tipo_evento):
     """Retorna a cor correspondente ao tipo de evento"""
+    if pd.isna(tipo_evento):
+        return '#9E9E9E', 'outros'
+    
     tipo_lower = str(tipo_evento).lower()
     
     if 'feira' in tipo_lower:
@@ -259,6 +229,9 @@ def get_event_color(tipo_evento):
 
 def get_event_tag_class(tipo_evento):
     """Retorna a classe CSS para a tag do tipo de evento"""
+    if pd.isna(tipo_evento):
+        return 'tag-outros'
+    
     tipo_lower = str(tipo_evento).lower()
     
     if 'feira' in tipo_lower:
@@ -286,21 +259,23 @@ def main():
         """, unsafe_allow_html=True)
     
     with col2:
-        if st.button("📊 Abrir Planilha Original", use_container_width=True):
-            st.markdown(
-                """<script>window.open('https://docs.google.com/spreadsheets/d/1J7baToo2UjdEJp8jtWc_7tYdQN_kJPmErKIR_9ByvL4/edit', '_blank')</script>""",
-                unsafe_allow_html=True
-            )
+        st.link_button(
+            "📊 Abrir Planilha",
+            "https://docs.google.com/spreadsheets/d/1J7baToo2UjdEJp8jtWc_7tYdQN_kJPmErKIR_9ByvL4/edit",
+            use_container_width=True
+        )
     
     # Carregar dados
-    df = load_events_from_sheets()
+    with st.spinner("Carregando eventos..."):
+        df = load_events_from_csv()
     
     if df is None or df.empty:
         st.error("Não foi possível carregar os eventos. Verifique a conexão com o Google Sheets.")
         st.info("""
-        **Instruções de configuração:**
-        1. Configure as credenciais do Google Cloud no arquivo `.streamlit/secrets.toml`
-        2. Verifique se a planilha está acessível com as credenciais fornecidas
+        **Possíveis causas:**
+        - A planilha não está publicada como CSV
+        - Problema de conexão com a internet
+        - URL do CSV incorreta
         """)
         return
     
@@ -390,39 +365,45 @@ def main():
         st.markdown('<div class="section-card">', unsafe_allow_html=True)
         st.markdown("### Próximos Eventos")
         
-        # Ordenar por data
-        df_ordenado = df_filtrado.sort_values('Data início')
-        
-        for idx, row in df_ordenado.iterrows():
-            color, tipo_class = get_event_color(row['Tipo de evento'])
-            tag_class = get_event_tag_class(row['Tipo de evento'])
+        if len(df_filtrado) == 0:
+            st.info("Nenhum evento encontrado com os filtros selecionados.")
+        else:
+            # Ordenar por data
+            df_ordenado = df_filtrado.sort_values('Data início')
             
-            data_inicio = row['Data início']
-            data_fim = row['Data Final']
-            
-            # Formatar datas
-            if pd.notna(data_inicio):
-                data_inicio_str = data_inicio.strftime('%d/%m/%Y')
-            else:
-                data_inicio_str = 'Data não definida'
-            
-            if pd.notna(data_fim):
-                data_fim_str = data_fim.strftime('%d/%m/%Y')
-            else:
-                data_fim_str = data_inicio_str
-            
-            st.markdown(f"""
-            <div class="event-card {tipo_class}">
-                <div style="margin-bottom: 8px;">
-                    <span class="event-tag {tag_class}">{row['Tipo de evento']}</span>
+            for idx, row in df_ordenado.iterrows():
+                color, tipo_class = get_event_color(row['Tipo de evento'])
+                tag_class = get_event_tag_class(row['Tipo de evento'])
+                
+                data_inicio = row['Data início']
+                data_fim = row['Data Final']
+                
+                # Formatar datas
+                if pd.notna(data_inicio):
+                    data_inicio_str = data_inicio.strftime('%d/%m/%Y')
+                else:
+                    data_inicio_str = 'Data não definida'
+                
+                if pd.notna(data_fim):
+                    data_fim_str = data_fim.strftime('%d/%m/%Y')
+                else:
+                    data_fim_str = data_inicio_str
+                
+                tipo_evento_display = row['Tipo de evento'] if pd.notna(row['Tipo de evento']) else 'Não definido'
+                universidade_display = row['Universidade'] if pd.notna(row['Universidade']) else 'Não definida'
+                
+                st.markdown(f"""
+                <div class="event-card {tipo_class}">
+                    <div style="margin-bottom: 8px;">
+                        <span class="event-tag {tag_class}">{tipo_evento_display}</span>
+                    </div>
+                    <h3 style="margin: 8px 0; font-size: 1.1rem;">{row['Nome']}</h3>
+                    <div style="color: #6B7A8F; font-size: 0.9rem;">
+                        📅 {data_inicio_str} até {data_fim_str}<br>
+                        🎓 {universidade_display}
+                    </div>
                 </div>
-                <h3 style="margin: 8px 0; font-size: 1.1rem;">{row['Nome']}</h3>
-                <div style="color: #6B7A8F; font-size: 0.9rem;">
-                    📅 {data_inicio_str} até {data_fim_str}<br>
-                    🎓 {row['Universidade']}
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
+                """, unsafe_allow_html=True)
         
         st.markdown('</div>', unsafe_allow_html=True)
     
