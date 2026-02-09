@@ -263,28 +263,40 @@ def main():
                             else:
                                 st.markdown(f"**{dia}**")
                             
-                            # Mostrar eventos como badges coloridas (máximo 3)
+                            # Mostrar eventos com popovers (máximo 3)
                             num_eventos = len(eventos_dia)
                             
-                            for _, evento in eventos_dia.head(3).iterrows():
+                            for event_idx, (_, evento) in enumerate(eventos_dia.head(3).iterrows()):
                                 color = get_event_color(evento['Tipo de evento'])
                                 nome = str(evento['Nome'])
                                 nome_display = nome[:10] + ".." if len(nome) > 12 else nome
                                 
-                                # Badge colorida com título completo no tooltip
-                                st.markdown(
-                                    f'<div style="background:{color}; color:white; '
-                                    f'padding:2px 4px; margin:2px 0; border-radius:3px; '
-                                    f'font-size:0.65rem; font-weight:500; cursor:pointer; '
-                                    f'white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" '
-                                    f'title="{nome}">'
-                                    f'{nome_display}</div>',
-                                    unsafe_allow_html=True
-                                )
+                                # Preparar informações
+                                data_inicio_str = evento['Data início'].strftime('%d/%m/%Y') if pd.notna(evento['Data início']) else 'N/A'
+                                data_fim_str = evento['Data Final'].strftime('%d/%m/%Y') if pd.notna(evento['Data Final']) else data_inicio_str
+                                tipo_str = evento['Tipo de evento'] if pd.notna(evento['Tipo de evento']) else 'Evento'
+                                univ_str = evento['Universidade'] if pd.notna(evento['Universidade']) else ''
+                                
+                                # Criar um key único para cada popover
+                                popover_key = f"event_{ano}_{mes}_{dia}_{event_idx}"
+                                
+                                # Popover com badge colorida
+                                with st.popover(nome_display, use_container_width=True, help=nome):
+                                    st.markdown(f"**{nome}**")
+                                    st.write(f"📅 {data_inicio_str} - {data_fim_str}")
+                                    st.write(f"🏷️ {tipo_str}")
+                                    if univ_str:
+                                        st.write(f"🎓 {univ_str}")
                             
                             # Indicador de mais eventos
                             if num_eventos > 3:
-                                st.caption(f"+{num_eventos - 3} mais")
+                                with st.popover(f"+{num_eventos - 3} mais"):
+                                    st.markdown("**Todos os eventos do dia:**")
+                                    for _, evt in eventos_dia.iterrows():
+                                        st.markdown(f"• {evt['Nome']}")
+                                        if pd.notna(evt['Data início']):
+                                            st.caption(f"📅 {evt['Data início'].strftime('%d/%m')}")
+                                    st.divider()
             
             st.write("")
         
@@ -305,6 +317,53 @@ def main():
         
         with col4:
             st.markdown("⬜ **Outros**")
+        
+        # ===== LISTA DE EVENTOS DO MÊS =====
+        st.divider()
+        st.subheader(f"Eventos de {meses_pt[mes-1]} {ano}")
+        
+        eventos_mes = df[
+            (df['Data início'].dt.month == mes) &
+            (df['Data início'].dt.year == ano)
+        ].sort_values('Data início')
+        
+        if len(eventos_mes) > 0:
+            for _, evento in eventos_mes.iterrows():
+                color = get_event_color(evento['Tipo de evento'])
+                
+                data_inicio = evento['Data início']
+                data_fim = evento['Data Final']
+                
+                if pd.notna(data_inicio):
+                    data_str = data_inicio.strftime('%d/%m/%Y')
+                    if pd.notna(data_fim) and data_fim != data_inicio:
+                        data_str += " - " + data_fim.strftime('%d/%m/%Y')
+                else:
+                    data_str = "Data não definida"
+                
+                tipo = evento['Tipo de evento'] if pd.notna(evento['Tipo de evento']) else 'Evento'
+                univ = evento['Universidade'] if pd.notna(evento['Universidade']) else ''
+                
+                col1, col2 = st.columns([4, 1])
+                
+                with col1:
+                    st.markdown(f"**{evento['Nome']}**")
+                    st.caption(f"📅 {data_str} • {tipo} {f'• 🎓 {univ}' if univ else ''}")
+                
+                with col2:
+                    # Emoji indicador
+                    if 'feira' in str(tipo).lower():
+                        st.markdown("### 🟥")
+                    elif 'live' in str(tipo).lower():
+                        st.markdown("### 🟦")
+                    elif 'circle' in str(tipo).lower():
+                        st.markdown("### 🟩")
+                    else:
+                        st.markdown("### ⬜")
+                
+                st.divider()
+        else:
+            st.info(f"Nenhum evento em {meses_pt[mes-1]} {ano}")
     
     with tab2:
         # ===== LISTA COMPLETA DE EVENTOS =====
@@ -331,22 +390,20 @@ def main():
             tipo = evento['Tipo de evento'] if pd.notna(evento['Tipo de evento']) else 'Evento'
             univ = evento['Universidade'] if pd.notna(evento['Universidade']) else ''
             
-            col1, col2 = st.columns([3, 1])
+            col1, col2 = st.columns([4, 1])
             
             with col1:
                 st.markdown(f"**{evento['Nome']}**")
-                st.caption(f"📅 {data_str} | 🏷️ {tipo} {f'| 🎓 {univ}' if univ else ''}")
+                st.caption(f"📅 {data_str} • 🏷️ {tipo} {f'• 🎓 {univ}' if univ else ''}")
             
             with col2:
-                # Emoji colorido baseado no tipo
-                if 'feira' in str(tipo).lower():
-                    st.markdown("🟥")
-                elif 'live' in str(tipo).lower():
-                    st.markdown("🟦")
-                elif 'circle' in str(tipo).lower():
-                    st.markdown("🟩")
-                else:
-                    st.markdown("⬜")
+                # Badge colorida com o nome do tipo
+                st.markdown(
+                    f'<div style="background:{color}; color:white; padding:8px 12px; '
+                    f'border-radius:6px; text-align:center; font-size:0.75rem; font-weight:600;">'
+                    f'{tipo}</div>',
+                    unsafe_allow_html=True
+                )
             
             st.divider()
 
