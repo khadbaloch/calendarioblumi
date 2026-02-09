@@ -175,20 +175,25 @@ def main():
                 st.session_state.current_year -= 1
             else:
                 st.session_state.current_month -= 1
+            st.rerun()
     
     with col2:
         if st.button("📅 Hoje", key="today", use_container_width=True):
             st.session_state.current_month = datetime.now().month
             st.session_state.current_year = datetime.now().year
+            st.rerun()
     
     with col3:
         # Título do mês centralizado
         meses_pt = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
                    'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
+        mes_atual = st.session_state.current_month
+        ano_atual = st.session_state.current_year
+        
         st.markdown(f"""
         <div style='text-align: center; padding: 8px 0;'>
             <span style='font-size: 1.5rem; font-weight: 600; color: #1A1A1A;'>
-                {meses_pt[st.session_state.current_month - 1]} {st.session_state.current_year}
+                {meses_pt[mes_atual - 1]} {ano_atual}
             </span>
         </div>
         """, unsafe_allow_html=True)
@@ -204,6 +209,7 @@ def main():
                 st.session_state.current_year += 1
             else:
                 st.session_state.current_month += 1
+            st.rerun()
     
     st.markdown("<div style='margin: 24px 0;'></div>", unsafe_allow_html=True)
     
@@ -211,11 +217,14 @@ def main():
     mes = st.session_state.current_month
     ano = st.session_state.current_year
     
+    # Configurar calendário para começar no domingo (padrão brasileiro)
+    calendar.setfirstweekday(calendar.SUNDAY)
+    
     # Gerar calendário
     cal = calendar.monthcalendar(ano, mes)
     hoje = datetime.now().date()
     
-    # Header dos dias da semana
+    # Header dos dias da semana (DOM - SÁB)
     dias_semana = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB']
     
     # Criar header
