@@ -20,72 +20,16 @@ st.markdown("""
         font-family: 'Inter', sans-serif;
     }
     
-    /* Forçar fundo branco */
-    .main, .stApp {
-        background-color: #FFFFFF !important;
-        color: #1A1A1A !important;
-    }
-    
-    [data-testid="stAppViewContainer"] {
-        background-color: #FFFFFF !important;
-    }
-    
-    /* Sidebar com fundo claro */
-    [data-testid="stSidebar"] {
-        background-color: #F8F9FA !important;
-    }
-    
-    [data-testid="stSidebar"] * {
-        color: #1A1A1A !important;
-    }
-    
     /* Headers */
-    h1, h2, h3, h4, h5, h6 {
-        color: #1A1A1A !important;
-    }
-    
     h1 {
         font-weight: 600;
         font-size: 1.8rem;
     }
     
-    /* Containers com fundo branco */
-    [data-testid="stVerticalBlock"] {
-        background-color: transparent;
-    }
-    
-    /* Métricas visíveis */
-    [data-testid="stMetricValue"] {
-        font-size: 1.8rem;
-        font-weight: 600;
-        color: #1A1A1A !important;
-    }
-    
-    [data-testid="stMetricLabel"] {
-        color: #5F6368 !important;
-    }
-    
     /* Botões */
     .stButton > button {
-        background-color: #FFFFFF;
-        border: 1px solid #DADCE0;
         border-radius: 4px;
-        color: #1A1A1A;
         font-weight: 500;
-    }
-    
-    .stButton > button:hover {
-        background-color: #F8F9FA;
-    }
-    
-    /* Texto geral */
-    p, span, div {
-        color: #1A1A1A;
-    }
-    
-    /* Caption */
-    .stCaption {
-        color: #5F6368 !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -183,13 +127,8 @@ def main():
         mes_atual = st.session_state.current_month
         ano_atual = st.session_state.current_year
         
-        st.markdown(f"""
-        <div style='text-align: center; padding: 8px 0;'>
-            <span style='font-size: 1.5rem; font-weight: 600; color: #1A1A1A;'>
-                {meses_pt[mes_atual - 1]} {ano_atual}
-            </span>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(f"### {meses_pt[mes_atual - 1]} {ano_atual}", 
+                   unsafe_allow_html=False)
     
     with col4:
         # Espaço vazio para simetria
@@ -282,17 +221,10 @@ def main():
         # Header dos dias da semana
         dias_semana = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB']
         
-        # Criar header
         cols_header = st.columns(7)
         for idx, dia in enumerate(dias_semana):
             with cols_header[idx]:
-                st.markdown(f"""
-                <div style='text-align: center; padding: 12px; background: #F8F9FA; 
-                            font-weight: 600; font-size: 0.75rem; color: #5F6368; 
-                            border-radius: 4px;'>
-                    {dia}
-                </div>
-                """, unsafe_allow_html=True)
+                st.markdown(f"**{dia}**")
         
         st.markdown("<div style='margin: 4px 0;'></div>", unsafe_allow_html=True)
         
@@ -331,7 +263,7 @@ def main():
                             else:
                                 st.markdown(f"**{dia}**")
                             
-                            # Mostrar eventos com popover (máximo 3)
+                            # Mostrar eventos como badges coloridas (máximo 3)
                             num_eventos = len(eventos_dia)
                             
                             for _, evento in eventos_dia.head(3).iterrows():
@@ -339,66 +271,40 @@ def main():
                                 nome = str(evento['Nome'])
                                 nome_display = nome[:10] + ".." if len(nome) > 12 else nome
                                 
-                                # Preparar detalhes
-                                data_inicio_str = evento['Data início'].strftime('%d/%m/%Y') if pd.notna(evento['Data início']) else 'N/A'
-                                data_fim_str = evento['Data Final'].strftime('%d/%m/%Y') if pd.notna(evento['Data Final']) else data_inicio_str
-                                tipo_str = evento['Tipo de evento'] if pd.notna(evento['Tipo de evento']) else 'Evento'
-                                univ_str = evento['Universidade'] if pd.notna(evento['Universidade']) else 'N/A'
-                                
-                                # Popover clicável
-                                with st.popover(nome_display, use_container_width=True):
-                                    st.markdown(f"**{nome}**")
-                                    st.caption(f"📅 {data_inicio_str} - {data_fim_str}")
-                                    st.caption(f"🏷️ {tipo_str}")
-                                    st.caption(f"🎓 {univ_str}")
+                                # Badge colorida com título completo no tooltip
+                                st.markdown(
+                                    f'<div style="background:{color}; color:white; '
+                                    f'padding:2px 4px; margin:2px 0; border-radius:3px; '
+                                    f'font-size:0.65rem; font-weight:500; cursor:pointer; '
+                                    f'white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" '
+                                    f'title="{nome}">'
+                                    f'{nome_display}</div>',
+                                    unsafe_allow_html=True
+                                )
                             
-                            # Mais eventos
+                            # Indicador de mais eventos
                             if num_eventos > 3:
-                                with st.popover(f"+{num_eventos - 3} mais", use_container_width=True):
-                                    st.markdown("**Eventos do dia:**")
-                                    for _, evento in eventos_dia.iterrows():
-                                        st.markdown(f"• {evento['Nome']}")
-                                        st.caption(f"📅 {evento['Data início'].strftime('%d/%m') if pd.notna(evento['Data início']) else '?'}")
-                                        st.divider()
+                                st.caption(f"+{num_eventos - 3} mais")
             
             st.write("")
         
         # Legenda
-        st.markdown("<div style='margin-top: 32px;'></div>", unsafe_allow_html=True)
+        st.write("")
+        st.write("")
         
         col1, col2, col3, col4 = st.columns(4)
         
         with col1:
-            st.markdown("""
-            <div style='display: flex; align-items: center; gap: 8px;'>
-                <div style='width: 16px; height: 16px; background: #FF6B8A; border-radius: 3px;'></div>
-                <span style='font-size: 0.875rem; color: #5F6368;'>Feiras</span>
-            </div>
-            """, unsafe_allow_html=True)
+            st.markdown("🟥 **Feiras**")
         
         with col2:
-            st.markdown("""
-            <div style='display: flex; align-items: center; gap: 8px;'>
-                <div style='width: 16px; height: 16px; background: #00D9FF; border-radius: 3px;'></div>
-                <span style='font-size: 0.875rem; color: #5F6368;'>Lives</span>
-            </div>
-            """, unsafe_allow_html=True)
+            st.markdown("🟦 **Lives**")
         
         with col3:
-            st.markdown("""
-            <div style='display: flex; align-items: center; gap: 8px;'>
-                <div style='width: 16px; height: 16px; background: #D4FF33; border-radius: 3px;'></div>
-                <span style='font-size: 0.875rem; color: #5F6368;'>Circles</span>
-            </div>
-            """, unsafe_allow_html=True)
+            st.markdown("🟩 **Circles**")
         
         with col4:
-            st.markdown("""
-            <div style='display: flex; align-items: center; gap: 8px;'>
-                <div style='width: 16px; height: 16px; background: #9E9E9E; border-radius: 3px;'></div>
-                <span style='font-size: 0.875rem; color: #5F6368;'>Outros</span>
-            </div>
-            """, unsafe_allow_html=True)
+            st.markdown("⬜ **Outros**")
     
     with tab2:
         # ===== LISTA COMPLETA DE EVENTOS =====
@@ -432,12 +338,15 @@ def main():
                 st.caption(f"📅 {data_str} | 🏷️ {tipo} {f'| 🎓 {univ}' if univ else ''}")
             
             with col2:
-                st.markdown(
-                    f'<div style="background:{color}; color:white; padding:6px 12px; '
-                    f'border-radius:6px; text-align:center; font-size:0.75rem; font-weight:600;">'
-                    f'{tipo}</div>',
-                    unsafe_allow_html=True
-                )
+                # Emoji colorido baseado no tipo
+                if 'feira' in str(tipo).lower():
+                    st.markdown("🟥")
+                elif 'live' in str(tipo).lower():
+                    st.markdown("🟦")
+                elif 'circle' in str(tipo).lower():
+                    st.markdown("🟩")
+                else:
+                    st.markdown("⬜")
             
             st.divider()
 
