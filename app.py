@@ -195,20 +195,45 @@ st.markdown("""
 def load_events_from_csv():
     """Carrega os eventos do CSV público do Google Sheets"""
     try:
-        # URL do CSV público
+        # URL do CSV público - ABA: Registro_eventos
+        # IMPORTANTE: Certifique-se de que a aba "Registro_eventos" está publicada
         CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRaDzfwhQrA8vGBdTYMQxMtWE-ABiSDqBpxxfVQMrJcvNC0sSqOEH6wj7Gvk3oTQhDzMJmWFEw3yQyL/pub?output=csv"
         
-        # Carregar dados
-        df = pd.read_csv(CSV_URL)
+        # Carregar dados com timeout
+        df = pd.read_csv(CSV_URL, encoding='utf-8')
+        
+        # Verificar se tem as colunas esperadas
+        expected_cols = ['Nome', 'Data início', 'Data Final', 'Tipo de evento', 'Universidade']
+        missing_cols = [col for col in expected_cols if col not in df.columns]
+        
+        if missing_cols:
+            st.error(f"⚠️ Colunas faltando na planilha: {missing_cols}")
+            st.info("📌 Verifique se a aba 'Registro_eventos' está sendo publicada como CSV")
+            return None
         
         # Processar datas
         df['Data início'] = pd.to_datetime(df['Data início'], errors='coerce', dayfirst=True)
         df['Data Final'] = pd.to_datetime(df['Data Final'], errors='coerce', dayfirst=True)
         
+        # Remover linhas completamente vazias
+        df = df.dropna(how='all')
+        
         return df
     
     except Exception as e:
-        st.error(f"Erro ao carregar dados: {e}")
+        st.error(f"❌ Erro ao carregar dados: {e}")
+        st.info("""
+        **Possíveis causas:**
+        1. A aba 'Registro_eventos' não está publicada como CSV
+        2. URL do CSV incorreta
+        3. Problema de conexão com o Google Sheets
+        
+        **Como resolver:**
+        - Vá em Arquivo → Compartilhar → Publicar na Web
+        - Selecione a aba 'Registro_eventos'
+        - Formato: CSV
+        - Publique e use o novo link
+        """)
         return None
 
 def get_event_color(tipo_evento):
@@ -266,18 +291,16 @@ def main():
         )
     
     # Carregar dados
-    with st.spinner("Carregando eventos..."):
+    with st.spinner("⏳ Carregando eventos da planilha..."):
         df = load_events_from_csv()
     
-    if df is None or df.empty:
-        st.error("Não foi possível carregar os eventos. Verifique a conexão com o Google Sheets.")
-        st.info("""
-        **Possíveis causas:**
-        - A planilha não está publicada como CSV
-        - Problema de conexão com a internet
-        - URL do CSV incorreta
-        """)
-        return
+    if df is None:
+        st.stop()
+    
+    if df.empty:
+        st.warning("⚠️ Nenhum evento encontrado na planilha.")
+        st.info("Verifique se a aba 'Registro_eventos' tem dados e está publicada corretamente.")
+        st.stop()
     
     # ===== SIDEBAR - FILTROS =====
     with st.sidebar:
@@ -410,81 +433,248 @@ def main():
     with tab2:
         # Visão de calendário
         st.markdown('<div class="section-card">', unsafe_allow_html=True)
-        st.markdown("### Calendário de Eventos")
         
-        # Selecionar mês para visualização
-        col1, col2 = st.columns(2)
+        # Controles do calendário
+        col1, col2, col3 = st.columns([1, 2, 1])
+        
         with col1:
-            ano_cal = st.selectbox("Ano", range(2024, 2027), index=1)
+            ano_cal = st.selectbox("Ano", range(2024, 2027), index=1, key="ano_cal")
+        
         with col2:
+            meses_pt = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+                       'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
             mes_cal = st.selectbox("Mês", range(1, 13), 
-                                   format_func=lambda x: calendar.month_name[x],
-                                   index=datetime.now().month - 1)
+                                   format_func=lambda x: meses_pt[x-1],
+                                   index=datetime.now().month - 1,
+                                   key="mes_cal")
+        
+        with col3:
+            st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
+            if st.button("📅 Hoje", use_container_width=True):
+                st.rerun()
+        
+        st.markdown("<div style='margin-top: 32px;'></div>", unsafe_allow_html=True)
+        
+        # Título do mês
+        st.markdown(f"""
+        <h2 style='text-align: center; color: #3B4B5E; font-weight: 600; margin-bottom: 24px;'>
+            {meses_pt[mes_cal-1]} {ano_cal}
+        </h2>
+        """, unsafe_allow_html=True)
         
         # Gerar calendário
         cal = calendar.monthcalendar(ano_cal, mes_cal)
         
-        # Dias da semana
-        dias_semana = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom']
+        # Header do calendário (dias da semana)
+        dias_semana = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
         
-        st.markdown("""
-        <div style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; margin-top: 16px;">
-        """ + "".join([f"<div style='text-align: center; font-weight: 600; color: #3B4B5E; padding: 8px;'>{dia}</div>" 
-                       for dia in dias_semana]) + "</div>", unsafe_allow_html=True)
+        header_html = """
+        <div style='display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-bottom: 4px;'>
+        """
+        for dia in dias_semana:
+            header_html += f"""
+            <div style='text-align: center; padding: 12px; font-weight: 600; 
+                        color: #6B7A8F; font-size: 0.9rem; background-color: #F2F4F6;
+                        border-radius: 8px;'>
+                {dia}
+            </div>
+            """
+        header_html += "</div>"
+        st.markdown(header_html, unsafe_allow_html=True)
         
-        # Gerar grid do calendário
-        calendario_html = "<div style='display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; margin-top: 8px;'>"
-        
+        # Grid do calendário
         hoje = datetime.now().date()
+        
+        calendar_html = """
+        <div style='display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px;'>
+        """
         
         for semana in cal:
             for dia in semana:
                 if dia == 0:
-                    calendario_html += "<div class='calendar-day' style='opacity: 0.3;'></div>"
+                    # Dia vazio (do mês anterior/posterior)
+                    calendar_html += """
+                    <div style='background-color: #FAFBFC; border-radius: 8px; 
+                                min-height: 100px; padding: 8px; border: 1px solid #E8EBF0;'>
+                    </div>
+                    """
                 else:
                     data_dia = datetime(ano_cal, mes_cal, dia).date()
                     
-                    # Verificar se há eventos neste dia
+                    # Verificar eventos neste dia
                     eventos_dia = df_filtrado[
                         (df_filtrado['Data início'].dt.date <= data_dia) &
                         (df_filtrado['Data Final'].dt.date >= data_dia)
                     ]
                     
-                    classes = ['calendar-day']
-                    if len(eventos_dia) > 0:
-                        classes.append('has-event')
-                    if data_dia == hoje:
-                        classes.append('today')
+                    # Estilo do dia
+                    is_today = data_dia == hoje
+                    has_events = len(eventos_dia) > 0
                     
-                    eventos_html = ""
-                    for _, evento in eventos_dia.iterrows():
-                        color, _ = get_event_color(evento['Tipo de evento'])
-                        eventos_html += f"<div class='event-dot' style='background-color: {color};'></div>"
+                    # Background color
+                    if is_today:
+                        bg_color = "#E0F9FF"
+                        border_color = "#00D9FF"
+                        border_width = "2px"
+                    elif has_events:
+                        bg_color = "#FFFFFF"
+                        border_color = "#D4FF33"
+                        border_width = "2px"
+                    else:
+                        bg_color = "#FFFFFF"
+                        border_color = "#E8EBF0"
+                        border_width = "1px"
                     
-                    calendario_html += f"""
-                    <div class='{' '.join(classes)}'>
-                        <div class='calendar-day-number'>{dia}</div>
-                        <div>{eventos_html}</div>
-                    </div>
+                    calendar_html += f"""
+                    <div style='background-color: {bg_color}; border-radius: 8px; 
+                                min-height: 100px; padding: 8px; border: {border_width} solid {border_color};
+                                position: relative;'>
+                        <div style='font-weight: 600; color: #3B4B5E; font-size: 1rem; 
+                                    margin-bottom: 8px;'>
+                            {dia}
+                        </div>
                     """
+                    
+                    # Adicionar eventos (máximo 3 visíveis)
+                    eventos_exibir = min(3, len(eventos_dia))
+                    for idx, (_, evento) in enumerate(eventos_dia.head(eventos_exibir).iterrows()):
+                        color, tipo_class = get_event_color(evento['Tipo de evento'])
+                        nome_evento = evento['Nome']
+                        
+                        # Truncar nome se muito longo
+                        if len(nome_evento) > 20:
+                            nome_evento = nome_evento[:17] + "..."
+                        
+                        calendar_html += f"""
+                        <div style='background-color: {color}; color: white; 
+                                    padding: 4px 6px; margin-bottom: 4px; border-radius: 4px;
+                                    font-size: 0.7rem; font-weight: 600; 
+                                    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;'>
+                            {nome_evento}
+                        </div>
+                        """
+                    
+                    # Indicador de mais eventos
+                    if len(eventos_dia) > 3:
+                        calendar_html += f"""
+                        <div style='font-size: 0.65rem; color: #6B7A8F; font-weight: 600; 
+                                    margin-top: 4px;'>
+                            +{len(eventos_dia) - 3} mais
+                        </div>
+                        """
+                    
+                    calendar_html += "</div>"
         
-        calendario_html += "</div>"
-        st.markdown(calendario_html, unsafe_allow_html=True)
+        calendar_html += "</div>"
+        st.markdown(calendar_html, unsafe_allow_html=True)
         
         # Legenda
-        st.markdown("""
-        <div style='margin-top: 24px; padding: 16px; background-color: #F2F4F6; border-radius: 10px;'>
-            <strong>Legenda:</strong><br>
-            <span style='display: inline-block; width: 12px; height: 12px; background-color: #FF6B8A; 
-                         border-radius: 50%; margin: 4px 8px 4px 0;'></span> Feiras
-            <span style='display: inline-block; width: 12px; height: 12px; background-color: #00D9FF; 
-                         border-radius: 50%; margin: 4px 8px 4px 16px;'></span> Lives
-            <span style='display: inline-block; width: 12px; height: 12px; background-color: #D4FF33; 
-                         border-radius: 50%; margin: 4px 8px 4px 16px;'></span> Circles
-            <span style='display: inline-block; width: 12px; height: 12px; background-color: #9E9E9E; 
-                         border-radius: 50%; margin: 4px 8px 4px 16px;'></span> Outros
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown("<div style='margin-top: 32px;'></div>", unsafe_allow_html=True)
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown("""
+            <div style='padding: 16px; background-color: #F2F4F6; border-radius: 10px;'>
+                <strong style='color: #3B4B5E; font-size: 0.9rem;'>Legenda de Cores:</strong><br><br>
+                <div style='margin: 8px 0;'>
+                    <span style='display: inline-block; width: 16px; height: 16px; 
+                                 background-color: #FF6B8A; border-radius: 4px; margin-right: 8px;
+                                 vertical-align: middle;'></span>
+                    <span style='color: #3B4B5E; font-size: 0.85rem;'>Feiras</span>
+                </div>
+                <div style='margin: 8px 0;'>
+                    <span style='display: inline-block; width: 16px; height: 16px; 
+                                 background-color: #00D9FF; border-radius: 4px; margin-right: 8px;
+                                 vertical-align: middle;'></span>
+                    <span style='color: #3B4B5E; font-size: 0.85rem;'>Lives</span>
+                </div>
+                <div style='margin: 8px 0;'>
+                    <span style='display: inline-block; width: 16px; height: 16px; 
+                                 background-color: #D4FF33; border-radius: 4px; margin-right: 8px;
+                                 vertical-align: middle;'></span>
+                    <span style='color: #3B4B5E; font-size: 0.85rem;'>Circles</span>
+                </div>
+                <div style='margin: 8px 0;'>
+                    <span style='display: inline-block; width: 16px; height: 16px; 
+                                 background-color: #9E9E9E; border-radius: 4px; margin-right: 8px;
+                                 vertical-align: middle;'></span>
+                    <span style='color: #3B4B5E; font-size: 0.85rem;'>Outros</span>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with col2:
+            st.markdown("""
+            <div style='padding: 16px; background-color: #F2F4F6; border-radius: 10px;'>
+                <strong style='color: #3B4B5E; font-size: 0.9rem;'>Destaque:</strong><br><br>
+                <div style='margin: 8px 0;'>
+                    <span style='display: inline-block; width: 16px; height: 16px; 
+                                 background-color: #E0F9FF; border: 2px solid #00D9FF; 
+                                 border-radius: 4px; margin-right: 8px; vertical-align: middle;'></span>
+                    <span style='color: #3B4B5E; font-size: 0.85rem;'>Dia de hoje</span>
+                </div>
+                <div style='margin: 8px 0;'>
+                    <span style='display: inline-block; width: 16px; height: 16px; 
+                                 background-color: #FFFFFF; border: 2px solid #D4FF33; 
+                                 border-radius: 4px; margin-right: 8px; vertical-align: middle;'></span>
+                    <span style='color: #3B4B5E; font-size: 0.85rem;'>Dia com eventos</span>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        # Mostrar eventos do dia selecionado (opcional)
+        if len(df_filtrado) > 0:
+            st.markdown("<div style='margin-top: 32px;'></div>", unsafe_allow_html=True)
+            st.markdown("### 📋 Eventos do Mês")
+            
+            # Filtrar eventos do mês
+            eventos_mes = df_filtrado[
+                (df_filtrado['Data início'].dt.month == mes_cal) &
+                (df_filtrado['Data início'].dt.year == ano_cal)
+            ].sort_values('Data início')
+            
+            if len(eventos_mes) > 0:
+                for _, evento in eventos_mes.iterrows():
+                    color, tipo_class = get_event_color(evento['Tipo de evento'])
+                    tag_class = get_event_tag_class(evento['Tipo de evento'])
+                    
+                    data_inicio = evento['Data início']
+                    data_fim = evento['Data Final']
+                    
+                    if pd.notna(data_inicio):
+                        data_inicio_str = data_inicio.strftime('%d/%m')
+                    else:
+                        data_inicio_str = '--'
+                    
+                    if pd.notna(data_fim) and data_fim != data_inicio:
+                        data_fim_str = " - " + data_fim.strftime('%d/%m')
+                    else:
+                        data_fim_str = ""
+                    
+                    tipo_evento_display = evento['Tipo de evento'] if pd.notna(evento['Tipo de evento']) else 'Não definido'
+                    
+                    st.markdown(f"""
+                    <div style='background-color: #FFFFFF; border-left: 4px solid {color};
+                                padding: 12px 16px; margin-bottom: 8px; border-radius: 8px;
+                                box-shadow: 0 1px 2px rgba(0,0,0,0.05);'>
+                        <div style='display: flex; justify-content: space-between; align-items: center;'>
+                            <div>
+                                <span style='font-weight: 600; color: #3B4B5E; font-size: 0.95rem;'>
+                                    {evento['Nome']}
+                                </span>
+                            </div>
+                            <div>
+                                <span class='event-tag {tag_class}'>{tipo_evento_display}</span>
+                                <span style='color: #6B7A8F; font-size: 0.85rem; margin-left: 8px;'>
+                                    {data_inicio_str}{data_fim_str}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+            else:
+                st.info("Nenhum evento neste mês.")
         
         st.markdown('</div>', unsafe_allow_html=True)
     
