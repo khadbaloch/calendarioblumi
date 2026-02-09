@@ -156,22 +156,6 @@ def main():
     cal = calendar.monthcalendar(ano, mes)
     hoje = datetime.now().date()
     
-    # Header dos dias da semana (DOM - SÁB)
-    dias_semana = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB']
-    
-    # Criar header
-    cols_header = st.columns(7)
-    for idx, dia in enumerate(dias_semana):
-        with cols_header[idx]:
-            st.markdown(f"""
-            <div style='text-align: center; padding: 12px; background: #F8F9FA; 
-                        font-weight: 600; font-size: 0.75rem; color: #5F6368; 
-                        border-radius: 4px;'>
-                {dia}
-            </div>
-            """, unsafe_allow_html=True)
-    
-    st.markdown("<div style='margin: 4px 0;'></div>", unsafe_allow_html=True)
     
     # Grid do calendário - uma semana por vez
     for semana in cal:
@@ -263,40 +247,33 @@ def main():
                             else:
                                 st.markdown(f"**{dia}**")
                             
-                            # Mostrar eventos com popovers (máximo 3)
+                            # Mostrar eventos como badges coloridas (máximo 3)
                             num_eventos = len(eventos_dia)
                             
-                            for event_idx, (_, evento) in enumerate(eventos_dia.head(3).iterrows()):
+                            for _, evento in eventos_dia.head(3).iterrows():
                                 color = get_event_color(evento['Tipo de evento'])
                                 nome = str(evento['Nome'])
-                                nome_display = nome[:10] + ".." if len(nome) > 12 else nome
                                 
-                                # Preparar informações
-                                data_inicio_str = evento['Data início'].strftime('%d/%m/%Y') if pd.notna(evento['Data início']) else 'N/A'
-                                data_fim_str = evento['Data Final'].strftime('%d/%m/%Y') if pd.notna(evento['Data Final']) else data_inicio_str
-                                tipo_str = evento['Tipo de evento'] if pd.notna(evento['Tipo de evento']) else 'Evento'
-                                univ_str = evento['Universidade'] if pd.notna(evento['Universidade']) else ''
+                                # Truncar nome
+                                if len(nome) > 15:
+                                    nome_display = nome[:13] + ".."
+                                else:
+                                    nome_display = nome
                                 
-                                # Criar um key único para cada popover
-                                popover_key = f"event_{ano}_{mes}_{dia}_{event_idx}"
-                                
-                                # Popover com badge colorida
-                                with st.popover(nome_display, use_container_width=True, help=nome):
-                                    st.markdown(f"**{nome}**")
-                                    st.write(f"📅 {data_inicio_str} - {data_fim_str}")
-                                    st.write(f"🏷️ {tipo_str}")
-                                    if univ_str:
-                                        st.write(f"🎓 {univ_str}")
+                                # Badge colorida estilo Google Calendar
+                                st.markdown(
+                                    f'<div style="background:{color}; color:white; '
+                                    f'padding:2px 6px; margin:2px 0; border-radius:3px; '
+                                    f'font-size:0.7rem; font-weight:500; '
+                                    f'white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" '
+                                    f'title="{nome}">'
+                                    f'{nome_display}</div>',
+                                    unsafe_allow_html=True
+                                )
                             
                             # Indicador de mais eventos
                             if num_eventos > 3:
-                                with st.popover(f"+{num_eventos - 3} mais"):
-                                    st.markdown("**Todos os eventos do dia:**")
-                                    for _, evt in eventos_dia.iterrows():
-                                        st.markdown(f"• {evt['Nome']}")
-                                        if pd.notna(evt['Data início']):
-                                            st.caption(f"📅 {evt['Data início'].strftime('%d/%m')}")
-                                    st.divider()
+                                st.caption(f"+{num_eventos - 3} mais")
             
             st.write("")
         
