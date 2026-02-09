@@ -254,10 +254,19 @@ def main():
                     data_dia = datetime(ano, mes, dia).date()
                     
                     # Buscar eventos deste dia
+                    # CORREÇÃO: Tratar Data Final nula (NaT)
                     eventos_dia = df[
                         (df['Data início'].dt.date <= data_dia) &
-                        (df['Data Final'].dt.date >= data_dia)
+                        ((df['Data Final'].dt.date >= data_dia) | (df['Data Final'].isna()))
                     ]
+                    
+                    # Se Data Final é nula, considera apenas o dia de início
+                    eventos_dia_inicio = df[
+                        (df['Data início'].dt.date == data_dia)
+                    ]
+                    
+                    # Combinar ambos e remover duplicatas
+                    eventos_dia = pd.concat([eventos_dia, eventos_dia_inicio]).drop_duplicates()
                     
                     # Estilo do dia
                     is_today = data_dia == hoje
@@ -270,28 +279,44 @@ def main():
                         else:
                             st.markdown(f"**{dia}**")
                         
-                        # Adicionar eventos (máximo 3)
-                        for _, evento in eventos_dia.head(3).iterrows():
-                            color = get_event_color(evento['Tipo de evento'])
-                            nome = str(evento['Nome'])
-                            
-                            # Truncar nome
-                            if len(nome) > 12:
-                                nome = nome[:10] + ".."
-                            
-                            # Badge do evento
-                            st.markdown(
-                                f'<div style="background:{color}; color:white; '
-                                f'padding:2px 4px; margin:2px 0; border-radius:3px; '
-                                f'font-size:0.65rem; font-weight:500; '
-                                f'white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">'
-                                f'{nome}</div>',
-                                unsafe_allow_html=True
-                            )
+                        # Mostrar TODOS os eventos (não limitar a 3)
+                        num_eventos = len(eventos_dia)
                         
-                        # Indicador de mais eventos
-                        if len(eventos_dia) > 3:
-                            st.caption(f"+{len(eventos_dia) - 3} mais")
+                        if num_eventos > 0:
+                            # Mostrar até 2 eventos com nome
+                            for _, evento in eventos_dia.head(2).iterrows():
+                                color = get_event_color(evento['Tipo de evento'])
+                                nome = str(evento['Nome'])
+                                
+                                # Truncar nome
+                                if len(nome) > 12:
+                                    nome_display = nome[:10] + ".."
+                                else:
+                                    nome_display = nome
+                                
+                                # Criar popover com detalhes
+                                data_inicio_str = evento['Data início'].strftime('%d/%m/%Y') if pd.notna(evento['Data início']) else 'N/A'
+                                data_fim_str = evento['Data Final'].strftime('%d/%m/%Y') if pd.notna(evento['Data Final']) else data_inicio_str
+                                tipo_str = evento['Tipo de evento'] if pd.notna(evento['Tipo de evento']) else 'Evento'
+                                univ_str = evento['Universidade'] if pd.notna(evento['Universidade']) else 'N/A'
+                                
+                                # Usar popover do Streamlit
+                                with st.popover(nome_display, use_container_width=True):
+                                    st.markdown(f"**{nome}**")
+                                    st.caption(f"📅 {data_inicio_str} - {data_fim_str}")
+                                    st.caption(f"🏷️ {tipo_str}")
+                                    st.caption(f"🎓 {univ_str}")
+                            
+                            # Se houver mais de 2, mostrar indicador clicável
+                            if num_eventos > 2:
+                                with st.popover(f"+{num_eventos - 2} eventos", use_container_width=True):
+                                    st.markdown("### Todos os eventos:")
+                                    for _, evento in eventos_dia.iterrows():
+                                        nome = str(evento['Nome'])
+                                        data_inicio_str = evento['Data início'].strftime('%d/%m') if pd.notna(evento['Data início']) else 'N/A'
+                                        st.markdown(f"• **{nome}**")
+                                        st.caption(f"📅 {data_inicio_str}")
+                                        st.divider()
         
         # Pequeno espaço entre semanas
         st.write("")
