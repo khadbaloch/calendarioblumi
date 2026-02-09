@@ -185,7 +185,7 @@ def main():
         
         st.markdown(f"""
         <div style='text-align: center; padding: 8px 0;'>
-            <span style='font-size: 1.5rem; font-weight: 600; color: #FFFFFF;'>
+            <span style='font-size: 1.5rem; font-weight: 600; color: #1A1A1A;'>
                 {meses_pt[mes_atual - 1]} {ano_atual}
             </span>
         </div>
@@ -258,149 +258,163 @@ def main():
                         (df['Data início'].dt.date == data_dia) &
                         (df['Data Final'].isna())
                     ]
-                    
-                    # Combinar e remover duplicatas
-                    eventos_dia = pd.concat([eventos_range, eventos_sem_fim]).drop_duplicates()
-                    eventos_dia = eventos_dia.sort_values('Data início')
-                    
-                    # Estilo do dia
-                    is_today = data_dia == hoje
-                    
-                    # Container para o dia
-                    with st.container(height=120, border=True):
-                        # Número do dia
-                        if is_today:
-                            st.markdown(f"**:blue[{dia}]**")
-                        else:
-                            st.markdown(f"**{dia}**")
+    
+    st.markdown("<div style='margin: 24px 0;'></div>", unsafe_allow_html=True)
+    
+    # =====ABAS =====
+    tab1, tab2 = st.tabs(["📅 Calendário", "📋 Todos os Eventos"])
+    
+    with tab1:
+        # Variáveis do mês atual
+        mes = st.session_state.current_month
+        ano = st.session_state.current_year
+        meses_pt = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+                   'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
+        
+        # ===== CALENDÁRIO =====
+        # Configurar calendário para começar no domingo
+        calendar.setfirstweekday(calendar.SUNDAY)
+        
+        # Gerar calendário
+        cal = calendar.monthcalendar(ano, mes)
+        hoje = datetime.now().date()
+        
+        # Header dos dias da semana
+        dias_semana = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB']
+        
+        # Criar header
+        cols_header = st.columns(7)
+        for idx, dia in enumerate(dias_semana):
+            with cols_header[idx]:
+                st.markdown(f"""
+                <div style='text-align: center; padding: 12px; background: #F8F9FA; 
+                            font-weight: 600; font-size: 0.75rem; color: #5F6368; 
+                            border-radius: 4px;'>
+                    {dia}
+                </div>
+                """, unsafe_allow_html=True)
+        
+        st.markdown("<div style='margin: 4px 0;'></div>", unsafe_allow_html=True)
+        
+        # Grid do calendário
+        for semana in cal:
+            cols = st.columns(7)
+            
+            for idx, dia in enumerate(semana):
+                with cols[idx]:
+                    if dia == 0:
+                        st.container(height=120, border=True)
+                    else:
+                        data_dia = datetime(ano, mes, dia).date()
                         
-                        # Mostrar eventos com barrinhas coloridas (máximo 3)
-                        num_eventos = len(eventos_dia)
+                        # Buscar eventos deste dia
+                        eventos_range = df[
+                            (df['Data início'].dt.date <= data_dia) &
+                            (df['Data Final'].dt.date >= data_dia) &
+                            (df['Data Final'].notna())
+                        ]
                         
-                        for _, evento in eventos_dia.head(3).iterrows():
-                            color = get_event_color(evento['Tipo de evento'])
-                            nome = str(evento['Nome'])
-                            
-                            # Truncar nome
-                            if len(nome) > 12:
-                                nome_display = nome[:10] + ".."
+                        eventos_sem_fim = df[
+                            (df['Data início'].dt.date == data_dia) &
+                            (df['Data Final'].isna())
+                        ]
+                        
+                        eventos_dia = pd.concat([eventos_range, eventos_sem_fim]).drop_duplicates()
+                        eventos_dia = eventos_dia.sort_values('Data início')
+                        
+                        is_today = data_dia == hoje
+                        
+                        with st.container(height=120, border=True):
+                            # Número do dia
+                            if is_today:
+                                st.markdown(f"**:blue[{dia}]**")
                             else:
-                                nome_display = nome
+                                st.markdown(f"**{dia}**")
                             
-                            # Barrinha colorida (estilo Google Calendar)
-                            st.markdown(
-                                f'<div style="background:{color}; color:white; '
-                                f'padding:2px 4px; margin:2px 0; border-radius:3px; '
-                                f'font-size:0.65rem; font-weight:500; '
-                                f'white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" '
-                                f'title="{nome}">'
-                                f'{nome_display}</div>',
-                                unsafe_allow_html=True
-                            )
-                        
-                        # Indicador de mais eventos
-                        if num_eventos > 3:
-                            st.caption(f"+{num_eventos - 3} mais")
+                            # Mostrar eventos com popover (máximo 3)
+                            num_eventos = len(eventos_dia)
+                            
+                            for _, evento in eventos_dia.head(3).iterrows():
+                                color = get_event_color(evento['Tipo de evento'])
+                                nome = str(evento['Nome'])
+                                nome_display = nome[:10] + ".." if len(nome) > 12 else nome
+                                
+                                # Preparar detalhes
+                                data_inicio_str = evento['Data início'].strftime('%d/%m/%Y') if pd.notna(evento['Data início']) else 'N/A'
+                                data_fim_str = evento['Data Final'].strftime('%d/%m/%Y') if pd.notna(evento['Data Final']) else data_inicio_str
+                                tipo_str = evento['Tipo de evento'] if pd.notna(evento['Tipo de evento']) else 'Evento'
+                                univ_str = evento['Universidade'] if pd.notna(evento['Universidade']) else 'N/A'
+                                
+                                # Popover clicável
+                                with st.popover(nome_display, use_container_width=True):
+                                    st.markdown(f"**{nome}**")
+                                    st.caption(f"📅 {data_inicio_str} - {data_fim_str}")
+                                    st.caption(f"🏷️ {tipo_str}")
+                                    st.caption(f"🎓 {univ_str}")
+                            
+                            # Mais eventos
+                            if num_eventos > 3:
+                                with st.popover(f"+{num_eventos - 3} mais", use_container_width=True):
+                                    st.markdown("**Eventos do dia:**")
+                                    for _, evento in eventos_dia.iterrows():
+                                        st.markdown(f"• {evento['Nome']}")
+                                        st.caption(f"📅 {evento['Data início'].strftime('%d/%m') if pd.notna(evento['Data início']) else '?'}")
+                                        st.divider()
+            
+            st.write("")
         
-        # Pequeno espaço entre semanas
-        st.write("")
-    
-    # ===== LEGENDA =====
-    st.markdown("<div style='margin-top: 32px;'></div>", unsafe_allow_html=True)
-    
-    col1, col2, col3, col4 = st.columns(4)
-    
-    with col1:
-        st.markdown("""
-        <div style='display: flex; align-items: center; gap: 8px;'>
-            <div style='width: 16px; height: 16px; background: #FF6B8A; border-radius: 3px;'></div>
-            <span style='font-size: 0.875rem; color: #5F6368;'>Feiras</span>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with col2:
-        st.markdown("""
-        <div style='display: flex; align-items: center; gap: 8px;'>
-            <div style='width: 16px; height: 16px; background: #00D9FF; border-radius: 3px;'></div>
-            <span style='font-size: 0.875rem; color: #5F6368;'>Lives</span>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with col3:
-        st.markdown("""
-        <div style='display: flex; align-items: center; gap: 8px;'>
-            <div style='width: 16px; height: 16px; background: #D4FF33; border-radius: 3px;'></div>
-            <span style='font-size: 0.875rem; color: #5F6368;'>Circles</span>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with col4:
-        st.markdown("""
-        <div style='display: flex; align-items: center; gap: 8px;'>
-            <div style='width: 16px; height: 16px; background: #9E9E9E; border-radius: 3px;'></div>
-            <span style='font-size: 0.875rem; color: #5F6368;'>Outros</span>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    # ===== LISTA DE EVENTOS DO MÊS =====
-    st.markdown("<div style='margin-top: 48px;'></div>", unsafe_allow_html=True)
-    
-    eventos_mes = df[
-        (df['Data início'].dt.month == mes) &
-        (df['Data início'].dt.year == ano)
-    ].sort_values('Data início')
-    
-    if len(eventos_mes) > 0:
-        st.markdown(f"### Eventos de {meses_pt[mes-1]} ({len(eventos_mes)})")
-        st.markdown("<div style='margin: 16px 0;'></div>", unsafe_allow_html=True)
+        # Legenda
+        st.markdown("<div style='margin-top: 32px;'></div>", unsafe_allow_html=True)
         
-        for _, evento in eventos_mes.iterrows():
-            color = get_event_color(evento['Tipo de evento'])
-            
-            data_inicio = evento['Data início']
-            data_fim = evento['Data Final']
-            
-            if pd.notna(data_inicio):
-                data_str = data_inicio.strftime('%d/%m/%Y')
-                if pd.notna(data_fim) and data_fim != data_inicio:
-                    data_str += " - " + data_fim.strftime('%d/%m/%Y')
-            else:
-                data_str = "Data não definida"
-            
-            tipo = evento['Tipo de evento'] if pd.notna(evento['Tipo de evento']) else 'Evento'
-            univ = evento['Universidade'] if pd.notna(evento['Universidade']) else ''
-            
-            st.markdown(f"""
-            <div style='border-left: 4px solid {color}; padding: 12px 16px; margin-bottom: 8px; 
-                        background: #F8F9FA; border-radius: 0 4px 4px 0;'>
-                <div style='font-weight: 600; color: #1A1A1A; margin-bottom: 4px;'>
-                    {evento['Nome']}
-                </div>
-                <div style='font-size: 0.875rem; color: #5F6368;'>
-                    {tipo} • {data_str} {f"• {univ}" if univ else ""}
-                </div>
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            st.markdown("""
+            <div style='display: flex; align-items: center; gap: 8px;'>
+                <div style='width: 16px; height: 16px; background: #FF6B8A; border-radius: 3px;'></div>
+                <span style='font-size: 0.875rem; color: #5F6368;'>Feiras</span>
             </div>
             """, unsafe_allow_html=True)
-
-    # ===== LISTA DE EVENTOS DO MÊS =====
-    st.divider()
+        
+        with col2:
+            st.markdown("""
+            <div style='display: flex; align-items: center; gap: 8px;'>
+                <div style='width: 16px; height: 16px; background: #00D9FF; border-radius: 3px;'></div>
+                <span style='font-size: 0.875rem; color: #5F6368;'>Lives</span>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with col3:
+            st.markdown("""
+            <div style='display: flex; align-items: center; gap: 8px;'>
+                <div style='width: 16px; height: 16px; background: #D4FF33; border-radius: 3px;'></div>
+                <span style='font-size: 0.875rem; color: #5F6368;'>Circles</span>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with col4:
+            st.markdown("""
+            <div style='display: flex; align-items: center; gap: 8px;'>
+                <div style='width: 16px; height: 16px; background: #9E9E9E; border-radius: 3px;'></div>
+                <span style='font-size: 0.875rem; color: #5F6368;'>Outros</span>
+            </div>
+            """, unsafe_allow_html=True)
     
-    eventos_mes = df[
-        (df['Data início'].dt.month == mes) &
-        (df['Data início'].dt.year == ano)
-    ].sort_values('Data início')
-    
-    if len(eventos_mes) > 0:
-        st.subheader(f"📋 Eventos de {meses_pt[mes-1]} ({len(eventos_mes)})")
+    with tab2:
+        # ===== LISTA COMPLETA DE EVENTOS =====
+        st.subheader("📋 Todos os Eventos")
+        st.caption("Lista completa de eventos da Blūmi Talents")
         st.write("")
         
-        for _, evento in eventos_mes.iterrows():
+        # Todos os eventos ordenados por data
+        df_todos = df.sort_values('Data início')
+        
+        for _, evento in df_todos.iterrows():
             color = get_event_color(evento['Tipo de evento'])
             
             data_inicio = evento['Data início']
             data_fim = evento['Data Final']
             
-            # Se Data Final é nula, usa Data início
             if pd.notna(data_inicio):
                 data_str = data_inicio.strftime('%d/%m/%Y')
                 if pd.notna(data_fim) and data_fim != data_inicio:
@@ -411,7 +425,6 @@ def main():
             tipo = evento['Tipo de evento'] if pd.notna(evento['Tipo de evento']) else 'Evento'
             univ = evento['Universidade'] if pd.notna(evento['Universidade']) else ''
             
-            # Card do evento
             col1, col2 = st.columns([3, 1])
             
             with col1:
@@ -419,7 +432,6 @@ def main():
                 st.caption(f"📅 {data_str} | 🏷️ {tipo} {f'| 🎓 {univ}' if univ else ''}")
             
             with col2:
-                # Badge colorida
                 st.markdown(
                     f'<div style="background:{color}; color:white; padding:6px 12px; '
                     f'border-radius:6px; text-align:center; font-size:0.75rem; font-weight:600;">'
@@ -428,8 +440,6 @@ def main():
                 )
             
             st.divider()
-    else:
-        st.info(f"Nenhum evento em {meses_pt[mes-1]} {ano}")
 
 if __name__ == "__main__":
     main()
